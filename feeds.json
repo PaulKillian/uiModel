@@ -1,0 +1,18 @@
+[
+  {"name": "UX Collective", "url": "https://uxdesign.cc/feed"},
+  {"name": "Smashing Magazine UX", "url": "https://www.smashingmagazine.com/category/ux/feed/"},
+  {"name": "Nielsen Norman Group", "url": "https://www.nngroup.com/articles/rss/"},
+  {"name": "A List Apart", "url": "https://alistapart.com/main/feed/"},
+  {"name": "UX Planet", "url": "https://uxplanet.org/feed"},
+  {"name": "Sidebar.io", "url": "https://sidebar.io/feed.xml"},
+  {"name": "Google Design", "url": "https://design.google/library/rss/"},
+  {"name": "Figma Blog", "url": "https://www.figma.com/blog/rss/"},
+  {"name": "web.dev", "url": "https://web.dev/feed.xml"},
+  {"name": "Chrome Developers", "url": "https://developer.chrome.com/feeds/blog.xml"},
+  {"name": "Mozilla Hacks", "url": "https://hacks.mozilla.org/feed/"},
+  {"name": "CSS-Tricks", "url": "https://css-tricks.com/feed/"},
+  {"name": "Smashing Magazine Front-End", "url": "https://www.smashingmagazine.com/feed/"},
+  {"name": "Designmodo", "url": "https://designmodo.com/feed/"},
+  {"name": "Codrops", "url": "https://tympanus.net/codrops/feed/"},
+  {"name": "Dribbble Blog", "url": "https://dribbble.com/stories.rss"}
+]
