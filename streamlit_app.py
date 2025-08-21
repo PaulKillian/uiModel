@@ -431,6 +431,46 @@ def load_post_applications_by_category(category: str, limit: int = 500) -> list[
     finally:
         con.close()
 
+# ---------- NEW: Saved Plans page helpers ----------
+@st.cache_data(ttl=60)
+def load_application_categories() -> list[str]:
+    con = sqlite3.connect(DB_PATH)
+    try:
+        rows = con.execute("SELECT DISTINCT COALESCE(category,'Uncategorized') AS c FROM post_application_plans ORDER BY 1").fetchall()
+        return [r[0] for r in rows if r and r[0]]
+    finally:
+        con.close()
+
+@st.cache_data(ttl=60)
+def load_post_applications_all(limit: int = 1000, search: str = "", categories: list[str] | None = None) -> list[dict]:
+    con = sqlite3.connect(DB_PATH)
+    try:
+        q = """
+        SELECT url, generated_at, model, COALESCE(category,'Uncategorized') AS category, title,
+               objective, why_it_matters, prerequisites, steps, code_starters,
+               ui_patterns, metrics, risks_mitigations, timeline, tasks, notes
+        FROM post_application_plans
+        WHERE 1=1
+        """
+        params = []
+        if search:
+            q += " AND (LOWER(title) LIKE ? OR LOWER(objective) LIKE ? OR LOWER(steps) LIKE ?)"
+            like = f"%{search.lower()}%"
+            params += [like, like, like]
+        if categories:
+            placeholders = ",".join("?" * len(categories))
+            q += f" AND category IN ({placeholders})"
+            params += categories
+        q += " ORDER BY datetime(generated_at) DESC LIMIT ?"
+        params.append(int(limit))
+        rows = con.execute(q, params).fetchall()
+        keys = ["url","generated_at","model","category","title",
+                "objective","why_it_matters","prerequisites","steps","code_starters",
+                "ui_patterns","metrics","risks_mitigations","timeline","tasks","notes"]
+        return [dict(zip(keys, r)) for r in rows]
+    finally:
+        con.close()
+
 def save_ai_insight(topic_id: int, model: str, summary: str, key_points: str, risks: str, opportunities: str, prompt_hash: str):
     con = sqlite3.connect(DB_PATH)
     try:
@@ -922,12 +962,129 @@ with st.sidebar:
         goto("dashboard")
     if st.button("Image Styles", key="nav_images"):
         goto("images")
+    if st.button("Saved Plans", key="nav_plans"):
+        goto("plans")
 
 # ----------------------------------
 # Routing
 # ----------------------------------
 ensure_db()
 page = st.query_params.get("page", "dashboard")
+
+# ----------------------------------
+# Saved Plans page
+# ----------------------------------
+if page == "plans":
+    st.header("📚 Saved Application Plans")
+
+    # Top filters
+    col_a, col_b, col_c = st.columns([2, 2, 1])
+    with col_a:
+        plans_search = st.text_input("Search (title/objective/steps)", "", key="plans_search")
+    with col_b:
+        plan_categories = load_application_categories()
+        sel_cats = st.multiselect("Filter by category", plan_categories, key="plans_categories")
+    with col_c:
+        plans_limit = st.number_input("Limit", min_value=50, max_value=5000, value=1000, step=50, key="plans_limit")
+
+    # Tabs per category (plus 'All')
+    tabs = st.tabs(["All"] + plan_categories)
+
+    # All tab (respects the search + multi-category filter)
+    with tabs[0]:
+        plans = load_post_applications_all(limit=int(plans_limit),
+                                           search=plans_search,
+                                           categories=sel_cats if sel_cats else None)
+        st.caption(f"Showing {len(plans)} saved plans")
+        if not plans:
+            st.info("No saved application plans yet.")
+        else:
+            for rec in plans:
+                label = f"{rec.get('title') or '(untitled)'} · {rec.get('category','Uncategorized')} · {rec.get('generated_at')}"
+                with st.expander(label, expanded=False):
+                    if rec.get("url"):
+                        st.markdown(f"[Open article]({rec['url']})  \nModel: `{rec.get('model','')}` • Saved: `{rec.get('generated_at','')}`")
+                    if rec.get("objective"):
+                        st.markdown("**Objective**")
+                        st.markdown(rec["objective"])
+                    cols_top = st.columns(2)
+                    with cols_top[0]:
+                        st.markdown("**Why it matters**")
+                        st.markdown(rec.get("why_it_matters","") or "_—_")
+                    with cols_top[1]:
+                        st.markdown("**Prerequisites**")
+                        st.markdown(rec.get("prerequisites","") or "_—_")
+                    st.markdown("**Implementation steps**")
+                    st.markdown(rec.get("steps","") or "_—_")
+                    cols_mid = st.columns(2)
+                    with cols_mid[0]:
+                        st.markdown("**UI patterns**")
+                        st.markdown(rec.get("ui_patterns","") or "_—_")
+                    with cols_mid[1]:
+                        st.markdown("**Metrics**")
+                        st.markdown(rec.get("metrics","") or "_—_")
+                    st.markdown("**Code starters**")
+                    st.markdown(rec.get("code_starters","") or "_—_")
+                    cols_bot = st.columns(2)
+                    with cols_bot[0]:
+                        st.markdown("**Risks & mitigations**")
+                        st.markdown(rec.get("risks_mitigations","") or "_—_")
+                    with cols_bot[1]:
+                        st.markdown("**Timeline**")
+                        st.markdown(rec.get("timeline","") or "_—_")
+                    st.markdown("**Tasks**")
+                    st.markdown(rec.get("tasks","") or "_—_")
+                    if rec.get("notes"):
+                        st.markdown("**Notes**")
+                        st.markdown(rec["notes"])
+
+    # One tab per category (shows that category only)
+    for t, cat in zip(tabs[1:], plan_categories):
+        with t:
+            plans = load_post_applications_by_category(cat, limit=int(plans_limit))
+            st.caption(f"{cat}: {len(plans)} saved plans")
+            if not plans:
+                st.info("No saved application plans in this category.")
+            else:
+                for rec in plans:
+                    label = f"{rec.get('title') or '(untitled)'} · {rec.get('generated_at')}"
+                    with st.expander(label, expanded=False):
+                        if rec.get("url"):
+                            st.markdown(f"[Open article]({rec['url']})  \nModel: `{rec.get('model','')}` • Saved: `{rec.get('generated_at','')}`")
+                        if rec.get("objective"):
+                            st.markdown("**Objective**")
+                            st.markdown(rec["objective"])
+                        cols_top = st.columns(2)
+                        with cols_top[0]:
+                            st.markdown("**Why it matters**")
+                            st.markdown(rec.get("why_it_matters","") or "_—_")
+                        with cols_top[1]:
+                            st.markdown("**Prerequisites**")
+                            st.markdown(rec.get("prerequisites","") or "_—_")
+                        st.markdown("**Implementation steps**")
+                        st.markdown(rec.get("steps","") or "_—_")
+                        cols_mid = st.columns(2)
+                        with cols_mid[0]:
+                            st.markdown("**UI patterns**")
+                            st.markdown(rec.get("ui_patterns","") or "_—_")
+                        with cols_mid[1]:
+                            st.markdown("**Metrics**")
+                            st.markdown(rec.get("metrics","") or "_—_")
+                        st.markdown("**Code starters**")
+                        st.markdown(rec.get("code_starters","") or "_—_")
+                        cols_bot = st.columns(2)
+                        with cols_bot[0]:
+                            st.markdown("**Risks & mitigations**")
+                            st.markdown(rec.get("risks_mitigations","") or "_—_")
+                        with cols_bot[1]:
+                            st.markdown("**Timeline**")
+                            st.markdown(rec.get("timeline","") or "_—_")
+                        st.markdown("**Tasks**")
+                        st.markdown(rec.get("tasks","") or "_—_")
+                        if rec.get("notes"):
+                            st.markdown("**Notes**")
+                            st.markdown(rec["notes"])
+    st.stop()  # prevent the dashboard page from also rendering
 
 # ----------------------------------
 # Trends page
@@ -997,7 +1154,7 @@ if page == "dashboard":
     if df_posts_all.empty:
         st.info("No posts matched. Try clearing filters or run the ingester.")
     else:
-        # Analyze ALL (current filter) – keeps your existing aggregate analyzer
+        # Analyze ALL (current filter) – aggregate analyzer
         a_all_cols = st.columns([1,1,6])
         with a_all_cols[0]:
             if st.button("Analyze current filter (AI)", key="btn_ai_posts_all", type="primary"):
@@ -1019,52 +1176,11 @@ if page == "dashboard":
                 with tab:
                     st.caption(f"Category: **{cat}** • Showing up to {limit} rows")
 
-                    # Saved application plans (persisted) as cards
-                    saved = load_post_applications_by_category(cat, limit=500)
-                    if saved:
-                        st.markdown("### 📌 Saved Application Plans")
-                        for i, rec in enumerate(saved, 1):
-                            with st.container(border=True):
-                                st.markdown(f"**[{rec.get('title') or '(untitled)'}]({rec.get('url')})**")
-                                st.caption(f"Model: {rec.get('model')} • Saved: {rec.get('generated_at')}")
-                                if rec.get("objective"):
-                                    st.markdown("**Objective**")
-                                    st.write(rec["objective"])
-                                cols_top = st.columns(2)
-                                with cols_top[0]:
-                                    st.markdown("**Why it matters**")
-                                    st.write(rec.get("why_it_matters",""))
-                                with cols_top[1]:
-                                    st.markdown("**Prerequisites**")
-                                    st.write(rec.get("prerequisites",""))
-
-                                st.markdown("**Implementation steps**")
-                                st.write(rec.get("steps",""))
-
-                                cols_mid = st.columns(2)
-                                with cols_mid[0]:
-                                    st.markdown("**UI patterns**")
-                                    st.write(rec.get("ui_patterns",""))
-                                with cols_mid[1]:
-                                    st.markdown("**Metrics**")
-                                    st.write(rec.get("metrics",""))
-
-                                st.markdown("**Code starters**")
-                                st.write(rec.get("code_starters",""))
-
-                                cols_bot = st.columns(2)
-                                with cols_bot[0]:
-                                    st.markdown("**Risks & mitigations**")
-                                    st.write(rec.get("risks_mitigations",""))
-                                with cols_bot[1]:
-                                    st.markdown("**Timeline**")
-                                    st.write(rec.get("timeline",""))
-
-                                st.markdown("**Tasks**")
-                                st.write(rec.get("tasks",""))
-                                if rec.get("notes"):
-                                    st.markdown("**Notes**")
-                                    st.write(rec.get("notes",""))
+                    # Saved application plans quick access (link to dedicated page)
+                    st.markdown("### 📌 Saved Application Plans")
+                    st.caption("Saved plans are shown on a dedicated page with tabs and expanders.")
+                    if st.button("Open Saved Plans", key=f"open_saved_{sanitize_key(cat, 'open')}"):
+                        goto("plans")
 
                     # Interactive list with per-post Application Plan buttons
                     df_cat = df_posts_all[df_posts_all["source"] == cat].copy()
@@ -1105,16 +1221,16 @@ if page == "dashboard":
                                     with st.expander("View saved plan"):
                                         if existing.get("objective"):
                                             st.markdown("**Objective**")
-                                            st.write(existing["objective"])
+                                            st.markdown(existing["objective"])
                                         st.markdown("**Implementation steps**")
-                                        st.write(existing.get("steps",""))
+                                        st.markdown(existing.get("steps",""))
                                         cols_sh = st.columns(2)
                                         with cols_sh[0]:
                                             st.markdown("**Prerequisites**")
-                                            st.write(existing.get("prerequisites",""))
+                                            st.markdown(existing.get("prerequisites",""))
                                         with cols_sh[1]:
                                             st.markdown("**Metrics**")
-                                            st.write(existing.get("metrics",""))
+                                            st.markdown(existing.get("metrics",""))
 
                                 # Generate Application Plan button (hash key)
                                 if st.button("Generate application plan", key=key_for_post("apply", cat, url, title, pub)):
