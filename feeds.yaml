@@ -1,0 +1,29 @@
+design_ui:
+  - https://www.smashingmagazine.com/feed/
+  - https://css-tricks.com/feed/
+  - https://web.dev/feed.xml
+  - https://tympanus.net/codrops/feed/
+  - https://www.nngroup.com/feed/rss/
+  - https://alistapart.com/main/feed/
+
+frameworks:
+  - https://blog.tailwindcss.com/rss.xml
+  - https://material.io/blog/rss.xml
+  - https://hacks.mozilla.org/feed/
+  - https://vercel.com/blog/rss.xml
+
+ux_collectives:
+  - https://uxplanet.org/feed
+  - https://uxdesign.cc/feed
+
+swiftui:
+  - https://swiftui-lab.com/feed/
+  - https://swiftbysundell.com/rss
+  - https://iosdevweekly.com/issues.rss
+
+flutter:
+  - https://medium.com/feed/flutter
+  - https://codewithandrea.com/rss.xml
+
+webgl_three:
+  - https://tympanus.net/codrops/tag/webgl/feed

@@ -1,0 +1,57 @@
+# Broad UI/UX + Frontend sources. Prune as needed.
+design_foundations:
+  - https://www.smashingmagazine.com/feed/
+  - https://css-tricks.com/feed/
+  - https://alistapart.com/main/feed/
+  - https://www.nngroup.com/feed/rss/
+  - https://www.a11yproject.com/feed.xml
+  - https://webaim.org/blog/feed/
+
+frontend_platforms:
+  - https://web.dev/feed.xml
+  - https://developer.chrome.com/blog/feed.xml
+  - https://hacks.mozilla.org/feed/
+  - https://react.dev/feed.xml
+  - https://nextjs.org/feed.xml
+  - https://astro.build/blog/rss.xml
+
+ui_libraries:
+  - https://blog.tailwindcss.com/rss.xml
+  - https://material.io/blog/rss.xml
+  - https://storybook.js.org/blog/rss.xml
+  - https://mui.com/blog/rss.xml
+  - https://www.radix-ui.com/feed.xml
+  - https://www.framer.com/blog/rss.xml
+
+prototyping_tools:
+  - https://www.figma.com/blog/feed.xml
+  - https://www.invisionapp.com/inside-design/feed/
+  - https://www.sketch.com/feed.xml
+
+ui_patterns_3d:
+  - https://tympanus.net/codrops/feed/
+  - https://tympanus.net/codrops/tag/webgl/feed
+
+mobile_ui:
+  - https://swiftui-lab.com/feed/
+  - https://swiftbysundell.com/rss
+  - https://iosdevweekly.com/issues.rss
+  - https://medium.com/feed/flutter
+
+ux_blogs:
+  - https://uxplanet.org/feed
+  - https://uxdesign.cc/feed
+  - https://uxmovement.com/feed/
+  - https://alistapart.com/main/feed/
+
+devto_tags:
+  - https://dev.to/feed/tag/ux
+  - https://dev.to/feed/tag/ui
+  - https://dev.to/feed/tag/design
+  - https://dev.to/feed/tag/webdev
+
+reddit_streams:
+  - https://www.reddit.com/r/web_design/.rss
+  - https://www.reddit.com/r/userexperience/.rss
+  - https://www.reddit.com/r/Frontend/.rss
+  - https://www.reddit.com/r/UXDesign/.rss

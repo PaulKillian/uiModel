@@ -1,156 +1,51 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Compute rolling momentum (slope over last K weeks) for EVERY (topic_id, week)
-and write it into topic_timeseries. Also print a Top Rising Trends preview
-for the latest week.
-
+Compute momentum for each topic's weekly series.
+Momentum = slope of counts over last W points (polyfit deg=1), default W=6.
 Usage:
-    python trends_momentum.py --K 8 --print_top 10
+  python trends_momentum.py [--window 6]
 """
-
-import os
-import sys
-import argparse
-import sqlite3
-from datetime import datetime
+import os, sqlite3, argparse
 import numpy as np
 import pandas as pd
 
-DB = os.path.abspath("trends.db")
+DB_PATH = os.path.abspath("trends.db")
 
-def log(msg: str):
-    print(msg, flush=True)
-
-def connect_db():
-    if not os.path.exists(DB):
-        raise FileNotFoundError("DB not found: %s" % DB)
-    return sqlite3.connect(DB)
-
-def ensure_tables(con):
-    con.execute("""
-    CREATE TABLE IF NOT EXISTS topic_timeseries (
-        topic_id INTEGER NOT NULL,
-        week TIMESTAMP NOT NULL,
-        count INTEGER NOT NULL,
-        momentum REAL,
-        PRIMARY KEY (topic_id, week)
-    )
-    """)
-    con.execute("""
-    CREATE TABLE IF NOT EXISTS topics (
-        id INTEGER PRIMARY KEY,
-        name TEXT,
-        keywords TEXT,
-        category TEXT
-    )
-    """)
-    con.commit()
-
-def fetch_series(con) -> pd.DataFrame:
-    df = pd.read_sql_query(
-        "SELECT topic_id, week, count, momentum FROM topic_timeseries ORDER BY week ASC",
-        con,
-        parse_dates=["week"],
-    )
-    return df
-
-def fetch_topic_names(con) -> pd.DataFrame:
-    return pd.read_sql_query("SELECT id AS topic_id, name FROM topics", con)
-
-def compute_slope(y_array: np.ndarray) -> float:
-    """
-    Linear regression slope over indices 0..n-1 for counts.
-    Returns 0.0 if fewer than 2 valid points.
-    """
-    y = np.asarray(y_array, dtype=float)
-    if y.size < 2 or np.all(np.isnan(y)):
+def compute_momentum(counts, window=6):
+    if len(counts) < 2:
         return 0.0
-    mask = ~np.isnan(y)
-    if mask.sum() < 2:
-        return 0.0
-    x = np.arange(y.size, dtype=float)[mask]
-    y = y[mask]
-    slope = np.polyfit(x, y, 1)[0]
-    return float(slope)
-
-def rebuild_and_rank(K: int = 8, print_top: int = 10):
-    con = connect_db()
+    w = min(window, len(counts))
+    y = np.array(counts[-w:], dtype=float)
+    x = np.arange(w, dtype=float)
     try:
-        ensure_tables(con)
-        df = fetch_series(con)
-        if df.empty:
-            log("No topic_timeseries data to compute momentum.")
-            return
-
-        # Compute rolling slope for EVERY week per topic
-        updates = []  # list of (momentum, topic_id, week_iso)
-        for tid, g in df.groupby("topic_id"):
-            g = g.sort_values("week").reset_index(drop=True)
-            counts = g["count"].astype(float).to_numpy()
-
-            for i in range(len(g)):
-                start = max(0, i - (K - 1))
-                window = counts[start:i+1]
-                slope = compute_slope(window)
-                wk = g.loc[i, "week"]
-                updates.append((float(slope), int(tid), wk.isoformat()))
-
-        # Write all momentum values
-        cur = con.cursor()
-        cur.executemany(
-            "UPDATE topic_timeseries SET momentum = ? WHERE topic_id = ? AND week = ?",
-            updates
-        )
-        con.commit()
-        log("Updated momentum for %d (topic, week) rows (rolling K=%d)." % (len(updates), K))
-
-        # Preview: top rising trends at the latest week
-        latest_week = df["week"].max()
-        names = fetch_topic_names(con)
-        latest = pd.read_sql_query(
-            "SELECT topic_id, week, count, momentum FROM topic_timeseries WHERE week = ?",
-            con,
-            params=(latest_week.isoformat(),),
-            parse_dates=["week"]
-        )
-        if latest.empty:
-            log("\nTop Rising Trends:\n(none)")
-            return
-
-        latest = latest.merge(names, on="topic_id", how="left")
-
-        def safe_name(row):
-            base = row.get("name")
-            if base is None or str(base).strip() == "":
-                return "Topic #%d" % int(row["topic_id"])
-            return str(base)
-
-        latest["readable"] = latest.apply(safe_name, axis=1)
-        latest["momentum"] = latest["momentum"].astype(float).fillna(0.0)
-        latest["count"] = latest["count"].astype(float).fillna(0.0).astype(int)
-        latest = latest.sort_values(["momentum", "count"], ascending=[False, False])
-
-        log("\nTop Rising Trends:\n")
-        top = latest.head(int(print_top))
-        for _, r in top.iterrows():
-            readable = str(r["readable"])
-            week_str = r["week"].date().isoformat() if hasattr(r["week"], "date") else str(r["week"])[:10]
-            count = int(r["count"])
-            mom = float(r["momentum"])
-            name30 = (readable[:30] + "…") if len(readable) > 31 else readable
-            log("  %-31s  week=%s  count=%3d  momentum=%+0.2f" % (name30, week_str, count, mom))
-
-    finally:
-        con.close()
+        m = np.polyfit(x, y, 1)[0]
+    except Exception:
+        m = 0.0
+    return float(m)
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--K", type=int, default=8, help="Lookback window (weeks) for rolling slope")
-    ap.add_argument("--print_top", type=int, default=10, help="How many rows to print in the preview")
+    ap.add_argument("--window", type=int, default=6)
     args = ap.parse_args()
 
-    rebuild_and_rank(K=int(args.K), print_top=int(args.print_top))
+    con = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("SELECT topic_id, week, count FROM topic_timeseries ORDER BY week ASC", con, parse_dates=["week"])
+    if df.empty:
+        print("No topic_timeseries. Run cluster_topics.py first.")
+        return
+    out = []
+    for tid, g in df.groupby("topic_id"):
+        g = g.sort_values("week")
+        mom = compute_momentum(g["count"].tolist(), window=args.window)
+        for _, r in g.iterrows():
+            out.append((int(tid), r["week"].isoformat(), int(r["count"]), mom))
+    cur = con.cursor()
+    cur.execute("DELETE FROM topic_timeseries")
+    cur.executemany("INSERT INTO topic_timeseries(topic_id,week,count,momentum) VALUES (?,?,?,?)", out)
+    con.commit()
+    con.close()
+    print("Momentum updated for", df["topic_id"].nunique(), "topics.")
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,13 @@
+streamlit
+openai>=1.0.0
+python-dotenv
+requests
+pillow
+plotly
+pandas
+numpy
+scikit-learn
+feedparser
+beautifulsoup4
+lxml
+pyyaml

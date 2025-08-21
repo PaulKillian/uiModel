@@ -1,0 +1,29 @@
+ai_art_models:
+  - https://www.reddit.com/r/StableDiffusion/.rss
+  - https://www.reddit.com/r/midjourney/.rss
+  - https://www.reddit.com/r/AdobeFirefly/.rss
+  - https://dev.to/feed/tag/stablediffusion
+  - https://dev.to/feed/tag/midjourney
+  - https://dev.to/feed/tag/aiart
+  - https://dev.to/feed/tag/generativeart
+  - https://dev.to/feed/tag/controlnet
+  - https://dev.to/feed/tag/lora
+  - https://medium.com/feed/tag/stable-diffusion
+  - https://medium.com/feed/tag/midjourney
+  - https://medium.com/feed/tag/ai-art
+  - https://medium.com/feed/tag/generative-art
+  - https://medium.com/feed/tag/controlnet
+  - https://medium.com/feed/tag/lora
+
+platforms_tools:
+  - https://www.reddit.com/r/ComfyUI/.rss
+  - https://www.reddit.com/r/Automatic1111/.rss
+  - https://www.reddit.com/r/StableDiffusionAI/.rss
+  - https://dev.to/feed/tag/comfyui
+  - https://dev.to/feed/tag/automatic1111
+  - https://dev.to/feed/tag/invokeai
+  - https://dev.to/feed/tag/runwayml
+
+industry_blogs:
+  - https://ai.googleblog.com/feeds/posts/default?alt=rss
+  - https://openai.com/blog/rss
