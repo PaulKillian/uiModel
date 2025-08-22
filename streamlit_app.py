@@ -86,17 +86,16 @@ def sanitize_key(s: str, prefix: str) -> str:
     s = re.sub(r"[^a-z0-9_\-]+", "_", s)
     return f"{prefix}_{s}"[:60]
 
-def key_for_post(prefix: str, cat: str, url: str | None, title: str | None, pub) -> str:
-    """Deterministic unique key for Streamlit widgets bound to a post."""
-    parts = [
-        prefix or "",
-        cat or "",
-        url or "",
-        title or "",
-        str(pub) if pub is not None else "",
-    ]
-    base = "|".join(parts)
-    h = hashlib.sha1(base.encode("utf-8")).hexdigest()[:12]
+def key_for_post(prefix: str, *args, idx: int | None = None) -> str:
+    """
+    Deterministic unique key for Streamlit widgets.
+    Combines prefix + args + optional index + short hash.
+    """
+    parts = [prefix or ""] + [str(a) for a in args if a is not None and str(a) != ""]
+    if idx is not None:
+        parts.append(str(idx))
+    raw = "|".join(parts)
+    h = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
     return f"{prefix}_{h}"
 
 # ----------------------------------
@@ -743,13 +742,13 @@ def render_ui_focus_section():
     st.subheader("🎨 AI UI/UX Focused Trends")
     cols = st.columns([1,1,1,1])
     with cols[0]:
-        model = st.text_input("UI Focus model", value="gpt-5-nano", key="ui_focus_model_input")
+        model = st.text_input("UI Focus model", value="gpt-5-nano", key=key_for_post("ui_focus_model"))
     with cols[1]:
-        n_topics = st.number_input("Topics", min_value=3, max_value=8, value=5, step=1, key="ui_focus_ntopics")
+        n_topics = st.number_input("Topics", min_value=3, max_value=8, value=5, step=1, key=key_for_post("ui_focus_ntopics"))
     with cols[2]:
-        include_images = st.toggle("Include images", value=True, key="ui_focus_images")
+        include_images = st.toggle("Include images", value=True, key=key_for_post("ui_focus_images"))
     with cols[3]:
-        run = st.button("Analyze UI Focus", type="primary", key="ui_focus_run")
+        run = st.button("Analyze UI Focus", type="primary", key=key_for_post("ui_focus_run"))
 
     ui_topics = []
     if run:
@@ -799,7 +798,7 @@ def render_ui_focus_section():
             st.subheader(topic.get("name", f"Topic {i}"))
             st.write(topic.get("description", ""))
             arts = topic.get("articles", []) or []
-            for art in arts:
+            for j, art in enumerate(arts):
                 c1, c2 = st.columns([1, 3])
                 with c1:
                     if include_images:
@@ -903,15 +902,15 @@ def normalize_rows(X: np.ndarray) -> np.ndarray:
 # ----------------------------------
 with st.sidebar:
     st.header("API")
-    api_input = st.text_input("OpenAI API key", type="password", key="api_key_input")
+    api_input = st.text_input("OpenAI API key", type="password", key=key_for_post("api_key_input"))
     if api_input:
         st.session_state["OPENAI_API_KEY"] = api_input
 
     st.header("Text Pipeline (with AI)")
-    analyze_top_n = st.number_input("Analyze top N topics with OpenAI", min_value=1, max_value=100, value=10, step=1, key="ai_analyze_topn")
-    openai_model = st.text_input("OpenAI model", "gpt-5-nano", key="ai_model_input")
+    analyze_top_n = st.number_input("Analyze top N topics with OpenAI", min_value=1, max_value=100, value=10, step=1, key=key_for_post("ai_analyze_topn"))
+    openai_model = st.text_input("OpenAI model", "gpt-5-nano", key=key_for_post("ai_model_input"))
 
-    if st.button("Run Full Text Pipeline", type="primary", key="btn_full_pipeline"):
+    if st.button("Run Full Text Pipeline", type="primary", key=key_for_post("btn_full_pipeline")):
         ensure_db()
         needed = ["ingest_sample.py", "cluster_topics.py", "trends_momentum.py"]
         missing = [p for p in needed if not os.path.exists(p)]
@@ -958,11 +957,11 @@ with st.sidebar:
 
     st.markdown("---")
     st.header("Navigate")
-    if st.button("Trends Dashboard", key="nav_dashboard"):
+    if st.button("Trends Dashboard", key=key_for_post("nav_dashboard")):
         goto("dashboard")
-    if st.button("Image Styles", key="nav_images"):
+    if st.button("Image Styles", key=key_for_post("nav_images")):
         goto("images")
-    if st.button("Saved Plans", key="nav_plans"):
+    if st.button("Saved Plans", key=key_for_post("nav_plans")):
         goto("plans")
 
 # ----------------------------------
@@ -980,12 +979,12 @@ if page == "plans":
     # Top filters
     col_a, col_b, col_c = st.columns([2, 2, 1])
     with col_a:
-        plans_search = st.text_input("Search (title/objective/steps)", "", key="plans_search")
+        plans_search = st.text_input("Search (title/objective/steps)", "", key=key_for_post("plans_search"))
     with col_b:
         plan_categories = load_application_categories()
-        sel_cats = st.multiselect("Filter by category", plan_categories, key="plans_categories")
+        sel_cats = st.multiselect("Filter by category", plan_categories, key=key_for_post("plans_categories"))
     with col_c:
-        plans_limit = st.number_input("Limit", min_value=50, max_value=5000, value=1000, step=50, key="plans_limit")
+        plans_limit = st.number_input("Limit", min_value=50, max_value=5000, value=1000, step=50, key=key_for_post("plans_limit"))
 
     # Tabs per category (plus 'All')
     tabs = st.tabs(["All"] + plan_categories)
@@ -1092,18 +1091,18 @@ if page == "plans":
 if page == "dashboard":
     with st.sidebar:
         st.header("Filters")
-        ui_focus = st.toggle("UI Focus", value=True, key="flt_ui_focus")
-        min_momentum = st.slider("Min momentum", -2.0, 2.0, 0.0, 0.05, key="flt_min_mom")
-        search = st.text_input("Search topic/keywords", "", key="flt_search").strip().lower()
-        sort_by = st.selectbox("Sort by", ["Momentum (desc)", "Count (desc)", "Name (A→Z)"], key="flt_sort")
-        max_cards = st.slider("Max cards", 5, 100, 20, 1, key="flt_max_cards")
+        ui_focus_flag = st.toggle("UI Focus", value=True, key=key_for_post("flt_ui_focus"))
+        min_momentum = st.slider("Min momentum", -2.0, 2.0, 0.0, 0.05, key=key_for_post("flt_min_mom"))
+        search = st.text_input("Search topic/keywords", "", key=key_for_post("flt_search")).strip().lower()
+        sort_by = st.selectbox("Sort by", ["Momentum (desc)", "Count (desc)", "Name (A→Z)"], key=key_for_post("flt_sort"))
+        st.session_state["flt_max_cards"] = st.slider("Max cards", 5, 100, 20, 1, key=key_for_post("flt_max_cards"))
 
     topics_df = load_topics_with_latest_momentum()
     if topics_df.empty:
         st.info("No topic_timeseries yet. Run the text pipeline.")
         st.stop()
 
-    if ui_focus:
+    if ui_focus_flag:
         keep_mask = (
             topics_df["keywords"].str.contains("button|table|modal|dialog|tooltip|tabs|accordion|toast|skeleton|grid|typography|color|token|animation|motion|material|fluent|tailwind|radix|shadcn", case=False, regex=True)
             | topics_df["name"].str.contains("button|table|dialog|navigation|tokens|typography|color|animation|motion|material|fluent|tailwind|radix|shadcn", case=False, regex=True)
@@ -1137,18 +1136,18 @@ if page == "dashboard":
     st.subheader("📰 Posts (categorized)")
     left, mid, right = st.columns([2, 2, 1])
     with left:
-        posts_search = st.text_input("Search title/summary", "", key="posts_search")
+        posts_search = st.text_input("Search title/summary", "", key=key_for_post("posts_search"))
     with mid:
         src_options = load_post_sources()
-        sel_sources = st.multiselect("Limit to sources (optional)", src_options, key="posts_sources")
+        sel_sources = st.multiselect("Limit to sources (optional)", src_options, key=key_for_post("posts_sources"))
     with right:
-        limit = st.number_input("Limit", min_value=100, max_value=20000, value=2000, step=100, key="posts_limit")
+        limit = st.number_input("Limit", min_value=100, max_value=20000, value=2000, step=100, key=key_for_post("posts_limit"))
 
     inter_cols = st.columns([1,1,2,2])
     with inter_cols[0]:
-        per_cat_interactive = st.number_input("Max interactive per category", min_value=10, max_value=300, value=50, step=10, key="per_cat")
+        per_cat_interactive = st.number_input("Max interactive per category", min_value=10, max_value=300, value=50, step=10, key=key_for_post("per_cat"))
     with inter_cols[1]:
-        posts_ai_model = st.text_input("Post model", "gpt-5-nano", key="posts_ai_model")
+        posts_ai_model = st.text_input("Post model", "gpt-5-nano", key=key_for_post("posts_ai_model"))
 
     df_posts_all = load_posts(limit=limit, search=posts_search, sources=sel_sources)
     if df_posts_all.empty:
@@ -1157,7 +1156,7 @@ if page == "dashboard":
         # Analyze ALL (current filter) – aggregate analyzer
         a_all_cols = st.columns([1,1,6])
         with a_all_cols[0]:
-            if st.button("Analyze current filter (AI)", key="btn_ai_posts_all", type="primary"):
+            if st.button("Analyze current filter (AI)", key=key_for_post("btn_ai_posts_all"), type="primary"):
                 payload = posts_stats_payload(df_posts_all, scope_label="All filtered posts")
                 try:
                     analysis = call_openai_for_posts_analysis(payload, model=posts_ai_model)
@@ -1179,7 +1178,7 @@ if page == "dashboard":
                     # Saved application plans quick access (link to dedicated page)
                     st.markdown("### 📌 Saved Application Plans")
                     st.caption("Saved plans are shown on a dedicated page with tabs and expanders.")
-                    if st.button("Open Saved Plans", key=f"open_saved_{sanitize_key(cat, 'open')}"):
+                    if st.button("Open Saved Plans", key=key_for_post("open_saved", cat)):
                         goto("plans")
 
                     # Interactive list with per-post Application Plan buttons
@@ -1189,7 +1188,7 @@ if page == "dashboard":
                         continue
 
                     st.markdown("### Articles")
-                    for row in df_cat.head(int(per_cat_interactive)).itertuples(index=False):
+                    for i, row in enumerate(df_cat.head(int(per_cat_interactive)).itertuples(index=False)):
                         title = getattr(row, "title")
                         url = getattr(row, "url")
                         summary = getattr(row, "summary") or ""
@@ -1232,8 +1231,8 @@ if page == "dashboard":
                                             st.markdown("**Metrics**")
                                             st.markdown(existing.get("metrics",""))
 
-                                # Generate Application Plan button (hash key)
-                                if st.button("Generate application plan", key=key_for_post("apply", cat, url, title, pub)):
+                                # Generate Application Plan button (hash key + idx)
+                                if st.button("Generate application plan", key=key_for_post("apply", cat, url, title, pub, idx=i)):
                                     try:
                                         with st.spinner("Generating plan…"):
                                             data = call_openai_for_post_application(
@@ -1269,10 +1268,10 @@ if page == "dashboard":
         if df.empty:
             st.info("Run: python tag_ui_components.py to populate style trends.")
         else:
-            pick = st.multiselect("Styles", sorted(df["style"].unique().tolist()), key="pick_styles")
+            pick = st.multiselect("Styles", sorted(df["style"].unique().tolist()), key=key_for_post("pick_styles"))
             plot_df = df if not pick else df[df["style"].isin(pick)]
             fig = px.line(plot_df, x="week", y="count", color="style", title="UI Styles momentum")
-            st.plotly_chart(fig, use_container_width=True, key="ui-styles-line")
+            st.plotly_chart(fig, use_container_width=True, key=key_for_post("ui_styles_line"))
 
     with tab_components:
         df = load_component_tags()
@@ -1281,20 +1280,20 @@ if page == "dashboard":
         else:
             df["week"] = df["week"].dt.to_period("W").dt.start_time
             agg = df.groupby(["component","week"]).size().reset_index(name="count")
-            pick = st.multiselect("Components", sorted(agg["component"].unique().tolist()), key="pick_components")
+            pick = st.multiselect("Components", sorted(agg["component"].unique().tolist()), key=key_for_post("pick_components"))
             plot_df = agg if not pick else agg[agg["component"].isin(pick)]
             fig = px.line(plot_df, x="week", y="count", color="component", title="Component mentions per week")
-            st.plotly_chart(fig, use_container_width=True, key="ui-components-line")
+            st.plotly_chart(fig, use_container_width=True, key=key_for_post("ui_components_line"))
 
     with tab_frameworks:
         df = load_framework_trends()
         if df.empty:
             st.info("Run: python tag_ui_components.py to populate framework trends.")
         else:
-            pick = st.multiselect("Frameworks", sorted(df["framework"].unique().tolist()), key="pick_frameworks")
+            pick = st.multiselect("Frameworks", sorted(df["framework"].unique().tolist()), key=key_for_post("pick_frameworks"))
             plot_df = df if not pick else df[df["framework"].isin(pick)]
             fig = px.line(plot_df, x="week", y="count", color="framework", title="Framework mentions per week")
-            st.plotly_chart(fig, use_container_width=True, key="ui-fw-line")
+            st.plotly_chart(fig, use_container_width=True, key=key_for_post("ui_fw_line"))
 
     # -------------------- Topic cards (below) --------------------
     n = 0
@@ -1321,12 +1320,12 @@ if page == "dashboard":
                 if not ts.empty:
                     fig = px.line(ts, x="week", y="count", markers=True, title="Weekly Posts")
                     fig.update_layout(height=220, margin=dict(l=10, r=10, t=30, b=10))
-                    st.plotly_chart(fig, use_container_width=True, key=f"ts-{topic_id}")
+                    st.plotly_chart(fig, use_container_width=True, key=key_for_post("ts_line", topic_id))
 
                     if "momentum" in ts.columns:
                         fig2 = px.line(ts.tail(12), x="week", y="momentum", markers=True, title="Momentum (rolling slope)")
                         fig2.update_layout(height=160, margin=dict(l=10, r=10, t=30, b=10))
-                        st.plotly_chart(fig2, use_container_width=True, key=f"mom-{topic_id}")
+                        st.plotly_chart(fig2, use_container_width=True, key=key_for_post("mom_line", topic_id))
                 else:
                     st.info("No time-series yet for this topic.")
 
@@ -1371,9 +1370,9 @@ if page == "images":
 
     left, right = st.columns([0.6, 0.4])
     with left:
-        K = st.slider("Number of clusters (styles)", min_value=4, max_value=24, value=10, step=1, key="img_K")
-        ttl_hours = st.number_input("Cache TTL (hours)", min_value=1, max_value=240, value=48, step=1, key="img_ttl")
-        force_cache = st.checkbox("Force re-download", value=False, key="img_force")
+        K = st.slider("Number of clusters (styles)", min_value=4, max_value=24, value=10, step=1, key=key_for_post("img_K"))
+        ttl_hours = st.number_input("Cache TTL (hours)", min_value=1, max_value=240, value=48, step=1, key=key_for_post("img_ttl"))
+        force_cache = st.checkbox("Force re-download", value=False, key=key_for_post("img_force"))
     with right:
         st.caption("Style prompts used to name clusters (editable):")
         default_styles = [
@@ -1382,10 +1381,10 @@ if page == "images":
             "Watercolor", "Oil Painting", "Line Art", "Low Poly",
             "Cartoon / Comic", "Sketch", "Cyberpunk", "Noir", "Retro", "Vaporwave"
         ]
-        styles_json = st.text_area("Style prompts (one per line)", "\n".join(default_styles), height=150, key="img_styles_txt")
+        styles_json = st.text_area("Style prompts (one per line)", "\n".join(default_styles), height=150, key=key_for_post("img_styles_txt"))
         style_prompts = [s.strip() for s in styles_json.splitlines() if s.strip()]
 
-    if st.button("Run Image Pipeline", key="img_run"):
+    if st.button("Run Image Pipeline", key=key_for_post("img_run")):
         with st.status("Running image pipeline…", expanded=False) as status:
             posts_df = load_image_sources_from_posts(max_rows=2000)
             urls = [u for u in posts_df["image_url"].astype(str).tolist() if u.strip()]
@@ -1439,8 +1438,8 @@ if page == "images":
         st.info("Run the pipeline to generate image styles.")
     else:
         styles = ["All"] + sorted(df["style"].unique().tolist())
-        sel = st.selectbox("Filter by style", styles, index=0, key="img_style_filter")
-        cols_per_row = st.slider("Columns", 2, 8, 5, key="img_cols")
+        sel = st.selectbox("Filter by style", styles, index=0, key=key_for_post("img_style_filter"))
+        cols_per_row = st.slider("Columns", 2, 8, 5, key=key_for_post("img_cols"))
 
         view = df if sel == "All" else df[df["style"] == sel]
         st.caption(f"Showing {len(view)} / {len(df)} images")
@@ -1458,9 +1457,9 @@ if page == "images":
                             st.caption("(failed to display)")
 
         csv_bytes = df.to_csv(index=False).encode("utf-8")
-        st.download_button("Download cluster assignments (CSV)", data=csv_bytes, file_name="image_styles.csv", mime="text/csv", key="img_dl")
+        st.download_button("Download cluster assignments (CSV)", data=csv_bytes, file_name="image_styles.csv", mime="text/csv", key=key_for_post("img_dl"))
 
-        if st.button("Clear image cache", key="img_clear"):
+        if st.button("Clear image cache", key=key_for_post("img_clear")):
             shutil.rmtree(CACHE_DIR, ignore_errors=True)
             CACHE_DIR.mkdir(exist_ok=True)
             st.success("Image cache cleared")
